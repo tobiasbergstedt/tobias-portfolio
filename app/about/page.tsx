@@ -12,3 +12,8 @@ const About = () => {
 }
 
 export default About
+
+export const metadata = {
+	title: 'About me',
+	description: 'About Tobias Bergstedt',
+}

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 		'Portfolio for Tobias Bergstedt. Showcasing his skills and projects.',
 }
 
-export default function RootLayout({
+export default function PagesLayout({
 	children,
 }: Readonly<{
 	children: React.ReactNode

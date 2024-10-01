@@ -1,22 +1,37 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { Object3D, Object3DEventMap, Raycaster, Vector2 } from 'three'
+import { setupScene } from '@three/sceneSetup'
+import { setupControls } from '@three/controlsSetup'
+import { setupPostProcessing } from '@three/postProcessingSetup'
 import {
-	initializeScene,
-	initializeCamera,
-	initializeRenderer,
-	addLights,
-	loadModel,
-} from './utils/threeUtils'
-import {
+	handleResize,
 	handleMouseMove,
 	handleClick,
-	animateScene,
-} from './utils/interactionUtils'
+	animate,
+} from '@three/eventHandlers'
+import { Vector3, Raycaster, Vector2, Mesh } from 'three'
 import dynamic from 'next/dynamic'
-import styles from './styles/page.module.css'
+import styles from '@styles/page.module.css'
+import { addLights, loadModel } from '@utils/threeUtils'
+
+const predefinedMeshConfigurations = [
+	{
+		name: 'mesh_7',
+		cameraPosition: new Vector3(2, 2, 5),
+		cameraTarget: new Vector3(0, 1.75, 0),
+	},
+	{
+		name: 'mesh_13',
+		cameraPosition: new Vector3(3, 3, 7),
+		cameraTarget: new Vector3(1, 1, 0),
+	},
+	{
+		name: 'mesh_10',
+		cameraPosition: new Vector3(-2, 2, 4),
+		cameraTarget: new Vector3(-1, 1.5, 0),
+	},
+]
 
 const Home = () => {
 	const mountRef = useRef<HTMLDivElement>(null)
@@ -24,77 +39,71 @@ const Home = () => {
 	useEffect(() => {
 		if (!mountRef.current) return
 
-		const scene = initializeScene()
-		const camera = initializeCamera()
+		const { scene, camera, renderer } = setupScene(mountRef.current)
+		const controls = setupControls(camera, renderer)
+		const { composer, outlinePass } = setupPostProcessing(
+			renderer,
+			scene,
+			camera
+		)
 
-		// Check if mountRef.current is not null before initializing renderer
-		if (mountRef.current) {
-			const renderer = initializeRenderer(mountRef.current)
-			const controls = new OrbitControls(camera, renderer.domElement)
-			controls.enableDamping = true
-			controls.dampingFactor = 0.25
-			controls.enableZoom = true
-			controls.minDistance = 1
-			controls.maxDistance = 5
-			controls.enablePan = false
-			controls.minPolarAngle = Math.PI / 5
-			controls.maxPolarAngle = Math.PI / 1.75
+		loadModel(scene, '/models/test.glb')
+		addLights(scene)
 
-			controls.target.set(0, 1.75, 0)
-			controls.update()
+		const raycaster = new Raycaster()
+		const mouse = new Vector2()
+		const INTERSECTED = { current: null as Mesh | null }
 
-			loadModel(scene, '/models/test.glb')
-			addLights(scene)
+		window.addEventListener(
+			'resize',
+			() => handleResize(camera, renderer, composer),
+			false
+		)
+		window.addEventListener(
+			'mousemove',
+			(event) => handleMouseMove(event, mouse),
+			false
+		)
+		window.addEventListener(
+			'click',
+			() =>
+				handleClick(
+					INTERSECTED,
+					camera,
+					controls,
+					predefinedMeshConfigurations
+				),
+			false
+		)
 
-			camera.lookAt(controls.target)
+		animate(
+			raycaster,
+			mouse,
+			camera,
+			scene,
+			outlinePass,
+			composer,
+			controls,
+			INTERSECTED,
+			predefinedMeshConfigurations
+		)
 
-			const handleResize = () => {
-				camera.aspect = window.innerWidth / window.innerHeight
-				camera.updateProjectionMatrix()
-				renderer.setSize(window.innerWidth, window.innerHeight)
+		return () => {
+			window.removeEventListener('resize', () =>
+				handleResize(camera, renderer, composer)
+			)
+			window.removeEventListener('mousemove', (event) =>
+				handleMouseMove(event, mouse)
+			)
+			window.removeEventListener('click', () =>
+				handleClick(INTERSECTED, camera, controls, predefinedMeshConfigurations)
+			)
+
+			if (mountRef.current) {
+				mountRef.current.removeChild(renderer.domElement)
 			}
-
-			window.addEventListener('resize', handleResize, false)
-
-			const raycaster = new Raycaster()
-			const mouse = new Vector2()
-			let INTERSECTED: Object3D<Object3DEventMap> | null = null
-
-			window.addEventListener(
-				'mousemove',
-				(event) => handleMouseMove(event, mouse),
-				false
-			)
-			window.addEventListener(
-				'click',
-				() => handleClick(INTERSECTED, camera, controls),
-				false
-			)
-
-			animateScene(
-				renderer,
-				scene,
-				camera,
-				controls,
-				raycaster,
-				mouse,
-				INTERSECTED
-			)
-
-			return () => {
-				window.removeEventListener('resize', handleResize)
-				window.removeEventListener('mousemove', (event) =>
-					handleMouseMove(event, mouse)
-				)
-				window.removeEventListener('click', () =>
-					handleClick(INTERSECTED, camera, controls)
-				)
-				if (mountRef.current) {
-					mountRef.current.removeChild(renderer.domElement)
-				}
-				scene.clear()
-				renderer.dispose()
-			}
+			scene.clear()
+			renderer.dispose()
 		}
 	}, [])
 
